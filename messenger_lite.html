@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Messenger Lite</title>
+
+<style>
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+margin:0;
+text-align:center
+}
+
+#login{
+padding:40px
+}
+
+input{
+padding:10px;
+border-radius:8px;
+border:none;
+margin:5px
+}
+
+button{
+padding:10px 20px;
+border:none;
+border-radius:10px;
+background:#22c55e;
+color:white;
+font-weight:bold;
+margin:5px
+}
+
+#app{
+display:none
+}
+
+video{
+width:45%;
+border-radius:10px;
+background:black
+}
+
+#chat{
+height:200px;
+overflow:auto;
+background:#1e293b;
+padding:10px;
+border-radius:10px
+}
+</style>
+</head>
+
+<body>
+
+<div id="login">
+<h2>Đăng nhập ID</h2>
+<input id="myId" placeholder="Nhập ID của bạn">
+<button onclick="login()">Vào</button>
+</div>
+
+<div id="app">
+
+<h3>ID của bạn: <span id="me"></span></h3>
+
+<input id="targetId" placeholder="ID người cần gọi">
+<button onclick="callUser()">📞 Gọi</button>
+
+<br><br>
+
+<video id="localVideo" autoplay muted playsinline></video>
+<video id="remoteVideo" autoplay playsinline></video>
+
+<h3>Chat</h3>
+
+<div id="chat"></div>
+
+<input id="msg" placeholder="Nhập tin nhắn">
+<button onclick="sendMsg()">Gửi</button>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase,ref,set,onValue,push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+const firebaseConfig = {
+apiKey:"AIzaSyAmox7yXJghU6uT1iu_PJ3Kl_E-e7-X4jk",
+authDomain:"call-b8842.firebaseapp.com",
+databaseURL:"https://call-b8842-default-rtdb.firebaseio.com",
+projectId:"call-b8842",
+storageBucket:"call-b8842.firebasestorage.app",
+messagingSenderId:"903901895949",
+appId:"1:903901895949:web:73ef94e1c1768da0cca444"
+};
+
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
+
+let myId;
+let peer;
+let localStream;
+
+async function login(){
+
+myId=document.getElementById("myId").value;
+
+if(!myId)return alert("Nhập ID");
+
+document.getElementById("login").style.display="none";
+document.getElementById("app").style.display="block";
+document.getElementById("me").innerText=myId;
+
+await startCamera();
+
+listenCall();
+listenChat();
+}
+
+async function startCamera(){
+
+localStream=await navigator.mediaDevices.getUserMedia({
+video:true,
+audio:true
+});
+
+document.getElementById("localVideo").srcObject=localStream;
+
+}
+
+function createPeer(){
+
+peer=new RTCPeerConnection({
+iceServers:[
+{urls:"stun:stun.l.google.com:19302"}
+]
+});
+
+localStream.getTracks().forEach(track=>{
+peer.addTrack(track,localStream)
+});
+
+peer.ontrack=e=>{
+document.getElementById("remoteVideo").srcObject=e.streams[0]
+};
+
+peer.onicecandidate=e=>{
+if(e.candidate){
+
+set(ref(db,"signals/"+target+"/"+myId+"/ice"),JSON.stringify(e.candidate));
+
+}
+};
+
+}
+
+let target;
+
+async function callUser(){
+target=document.getElementById("targetId").value;
+
+createPeer();
+
+const offer=await peer.createOffer();
+await peer.setLocalDescription(offer);
+
+set(ref(db,"signals/"+target+"/"+myId+"/offer"),JSON.stringify(offer));
+}
+
+function listenCall(){
+onValue(ref(db,"signals/"+myId),async snap=>{
+
+const data=snap.val();
+if(!data)return;
+
+for(const from in data){
+
+const msg=data[from];
+
+if(msg.offer){
+
+createPeer();
+
+await peer.setRemoteDescription(
+new RTCSessionDescription(JSON.parse(msg.offer))
+);
+
+const answer=await peer.createAnswer();
+await peer.setLocalDescription(answer);
+
+set(ref(db,"signals/"+from+"/"+myId+"/answer"),JSON.stringify(answer));
+
+target=from;
+
+}
+
+if(msg.answer){
+
+await peer.setRemoteDescription(
+new RTCSessionDescription(JSON.parse(msg.answer))
+);
+
+}
+
+if(msg.ice){
+
+await peer.addIceCandidate(
+new RTCIceCandidate(JSON.parse(msg.ice))
+);
+
+}
+
+}
+
+});
+}
+
+function sendMsg(){
+
+const text=document.getElementById("msg").value;
+
+push(ref(db,"chat"),{
+from:myId,
+msg:text
+});
+
+document.getElementById("msg").value="";
+}
+
+function listenChat(){
+onValue(ref(db,"chat"),snap=>{
+
+const data=snap.val();
+
+let html="";
+
+for(const k in data){
+
+html+=`<p><b>${data[k].from}</b>: ${data[k].msg}</p>`;
+
+}
+
+document.getElementById("chat").innerHTML=html;
+
+});
+}
+
+</script>
+
+</body>
+</html>
