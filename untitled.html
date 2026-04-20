@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hào Pro - Algorithm Master V.Final</title>
+    <style>
+        :root { --gold: #fbbf24; --bg: #020617; --card: #1e293b; --text: #f8fafc; --accent: #8b5cf6; --danger: #f43f5e; --success: #10b981; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Segoe UI', system-ui; background: var(--bg); color: var(--text); margin: 0; padding: 10px; overflow-x: hidden; }
+        
+        /* Header & Info */
+        .header { text-align: center; border-bottom: 2px solid var(--gold); padding: 10px 0; margin-bottom: 10px; }
+        .header h1 { font-size: 1.1rem; margin: 0; color: var(--gold); text-transform: uppercase; }
+        .id-badge { background: #334155; padding: 5px 10px; border-radius: 8px; font-size: 10px; display: inline-block; margin-top: 5px; color: #94a3b8; }
+
+        /* Animal Selection */
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+        .btn-anm { background: var(--card); border: 1px solid #334155; border-radius: 12px; padding: 8px; cursor: pointer; text-align: center; }
+        .btn-anm img { width: 100%; border-radius: 6px; background: #fff; margin-bottom: 4px; }
+        .btn-anm span { font-size: 11px; font-weight: bold; color: #cbd5e1; }
+        .btn-anm:active { transform: scale(0.9); border-color: var(--gold); }
+
+        /* Control Panel */
+        .panel { background: var(--card); border-radius: 20px; padding: 15px; border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .slots { display: flex; justify-content: center; gap: 8px; margin-bottom: 15px; }
+        .slot { width: 55px; height: 55px; border: 2px dashed #475569; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #020617; }
+        .slot img { width: 85%; }
+
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 8px; font-size: 14px; transition: 0.2s; }
+        .btn-confirm { background: var(--success); color: white; box-shadow: 0 4px 0 #065f46; }
+        .btn-solve { background: var(--gold); color: #000; font-size: 16px; margin-top: 5px; box-shadow: 0 4px 0 #92400e; }
+        .btn-solve:active, .btn-confirm:active { transform: translateY(3px); box-shadow: none; }
+        
+        .row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .btn-util { background: #475569; color: white; font-size: 11px; }
+
+        /* Results & Logic Viewer */
+        .history { font-size: 10px; color: #94a3b8; background: #000; padding: 10px; border-radius: 10px; margin-top: 15px; max-height: 80px; overflow-y: auto; border: 1px solid #1e293b; line-height: 1.4; }
+        .res-container { margin-top: 20px; }
+        .rule-card { background: #fff; color: #1e293b; border-radius: 16px; margin-bottom: 12px; border-left: 8px solid var(--accent); overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .rule-head { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .rule-body { padding: 0 15px; max-height: 0; overflow: hidden; transition: 0.3s; background: #f1f5f9; font-size: 12px; }
+        .rule-card.active .rule-body { max-height: 400px; padding: 12px 15px; border-top: 1px solid #e2e8f0; }
+
+        .badge-predict { background: var(--danger); color: white; padding: 6px 15px; border-radius: 10px; font-weight: 900; font-size: 18px; }
+        .badge-skip { background: #64748b; color: white; padding: 6px 15px; border-radius: 10px; font-weight: bold; }
+        .logic-tag { background: var(--accent); color: white; font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-bottom: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+
+<div class="app">
+    <div class="header">
+        <h1>Hào Pro Master Tool</h1>
+        <div class="id-badge">Phiên bản: HMC.580.634 (Server-Linked)</div>
+    </div>
+    
+    <div class="grid" id="iconGrid"></div>
+
+    <div class="panel">
+        <div class="slots" id="slots"><div class="slot"></div><div class="slot"></div><div class="slot"></div></div>
+        <button class="btn btn-confirm" onclick="handleConfirm()">XÁC NHẬN VÁN</button>
+        <div class="row-btns">
+            <button class="btn btn-util" onclick="undo()">HOÀN TÁC</button>
+            <button class="btn btn-util" onclick="resetAll()">XÓA HẾT</button>
+        </div>
+        <button class="btn btn-solve" onclick="fullScan()">QUÉT QUY LUẬT TỔNG LỰC</button>
+        <div class="history" id="histLog">Chờ lịch sử...</div>
+    </div>
+
+    <div id="resBox" class="res-container"></div>
+</div>
+
+<script>
+    const NAMES = ["Nai", "Bầu", "Gà", "Cá", "Cua", "Tôm"];
+    const IMGS = ["images/nai.png", "images/bau.png", "images/ga.png", "images/ca.png", "images/cua.png", "images/tom.png"];
+    let current = [], history = [];
+
+    // Initialize UI
+    const grid = document.getElementById('iconGrid');
+    NAMES.forEach((n, i) => grid.innerHTML += `<div class="btn-anm" onclick="pick(${i})"><img src="${IMGS[i]}"><span>${n}</span></div>`);
+
+    function pick(id) { if(current.length < 3) { current.push(id); renderSlots(); } }
+    function renderSlots() {
+        const s = document.getElementById('slots').children;
+        for(let i=0; i<3; i++) s[i].innerHTML = current[i] !== undefined ? `<img src="${IMGS[current[i]]}">` : "";
+    }
+    function handleConfirm() { if(current.length<3) return; history.push([...current]); current=[]; renderSlots(); renderHistory(); fullScan(); }
+    function undo() { history.pop(); renderHistory(); fullScan(); }
+    function resetAll() { if(confirm("Xóa trắng?")) { history=[]; renderHistory(); document.getElementById('resBox').innerHTML=""; } }
+    function renderHistory() {
+        document.getElementById('histLog').innerHTML = history.length ? history.map((v, i) => `<b>V${i+1}:</b> ${v.map(id => NAMES[id]).join('-')}`).join(' | ') : "Chờ lịch sử...";
+    }
+
+    // Logic Generators
+    function getPerms(a) { if(a.length<=1)return[a];let r=[];for(let i=0;i<a.length;i++){let s=getPerms(a.slice(0,i).concat(a.slice(i+1)));for(let t of s)r.push([a[i],...t])}return r;}
+    const perms = getPerms([0,1,2,3,4,5]);
+    const formulas = [
+        { n: "Tổng 3 con (A+B+C)", f: (a,b,c) => a+b+c },
+        { n: "Tổng 2 con (A+B)", f: (a,b,c) => a+b },
+        { n: "Con Trái (A)", f: (a,b,c) => a }
+    ];
+
+    function fullScan() {
+        if(history.length < 3) return;
+        let results = [];
+        const skipTriggers = [-1, 0, 1, 2, 3, 4, 5];
+        const cycles = [0, 2, 3, 4, 5];
+
+        // 1. SCAN LOGIC VỊ TRÍ & TỔNG
+        for(let p of perms) {
+            for(let form of formulas) {
+                for(let ex=0; ex<=5; ex++) {
+                    for(let sk of skipTriggers) {
+                        for(let cy of cycles) {
+                            let ok = true, score = 0;
+                            for(let i=0; i < history.length - 1; i++) {
+                                let v1 = history[i], v2 = history[i+1].map(x => p[x]);
+                                if((cy > 0 && (i+1)%cy === 0) || (sk !== -1 && v1.includes(sk))) {
+                                    if(v2.includes((form.f(p[v1[0]], p[v1[1]], p[v1[2]]) + ex)%6)) { ok = false; break; }
+                                } else {
+                                    if(!v2.includes((form.f(p[v1[0]], p[v1[1]], p[v1[2]]) + ex)%6)) { ok = false; break; }
+                                    score++;
+                                }
+                            }
+                            if(ok && score > 0) results.push({p:[...p], form, ex, sk, cy, score});
+                            if(results.length > 15) break;
+                        }
+                        if(results.length > 15) break;
+                    }
+                    if(results.length > 15) break;
+                }
+                if(results.length > 15) break;
+            }
+            if(results.length > 15) break;
+        }
+        renderResults(results);
+    }
+
+    function renderResults(rules) {
+        const box = document.getElementById('resBox');
+        if(!rules.length) {
+            box.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:20px;background:rgba(255,255,255,0.05);border-radius:15px">Hào ơi, mã 580.634 có thể đang đổi 'Điểm Né'.<br>Hãy nhập thêm ván để máy dò ra mã này!</div>`;
+            return;
+        }
+        box.innerHTML = `<div style="text-align:center;font-size:11px;color:var(--gold);margin-bottom:10px">PHÂN TÍCH THÀNH CÔNG</div>`;
+        rules.slice(0, 8).forEach(r => {
+            const lastV = history[history.length-1];
+            const isSkip = (r.sk !== -1 && lastV.includes(r.sk)) || (r.cy > 0 && (history.length % r.cy === 0));
+            const val = (r.form.f(r.p[lastV[0]], r.p[lastV[1]], r.p[lastV[2]]) + r.ex) % 6;
+            const pred = isSkip ? "BỎ VÁN" : NAMES[r.p.indexOf(val)].toUpperCase();
+            
+            const card = document.createElement('div');
+            card.className = "rule-card";
+            card.innerHTML = `
+                <div class="rule-head" onclick="this.parentElement.classList.toggle('active')">
+                    <div>
+                        <span class="logic-tag">Khớp ${r.score} ván</span><br>
+                        <b>${r.form.n} + ${r.ex}</b>
+                    </div>
+                    <div class="${isSkip ? 'badge-skip' : 'badge-predict'}">${pred}</div>
+                </div>
+                <div class="rule-body">
+                    <p>• <b>Né:</b> ${r.sk!==-1?NAMES[r.sk]:'Không'} | <b>Vòng lặp:</b> ${r.cy>0?r.cy:'Không'}</p>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;background:#ddd;padding:8px;border-radius:8px">
+                        ${NAMES.map((n,idx)=>`<div>${n}=${r.p[idx]}</div>`).join('')}
+                    </div>
+                </div>`;
+            box.appendChild(card);
+        });
+    }
+</script>
+</body>
+</html>
